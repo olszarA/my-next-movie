@@ -13,11 +13,21 @@ private struct RootView: View {
     var body: some View {
         TabView {
             Tab("Movies", systemImage: symbolNameMovies) {
-                MovieListView(viewModel: MovieListViewModel(loadMovies: loadSampleMovies))
+                movieList
             }
             Tab("Search", systemImage: symbolNameSearch, role: .search) {
-                SearchView(viewModel: SearchViewModel(searchMovies: searchSampleMovies))
+                search
             }
         }
+    }
+
+    private var movieList: some View {
+        let viewModel = MovieListViewModel(loadMovies: fetchPopularMovies)
+        return MovieListView(viewModel: viewModel, loadDetails: fetchMovieDetails)
+    }
+
+    private var search: some View {
+        let viewModel = SearchViewModel(searchMovies: searchTMDBMovies)
+        return SearchView(viewModel: viewModel, loadDetails: fetchMovieDetails)
     }
 }
