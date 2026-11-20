@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 // TMDB REST API. See https://developer.themoviedb.org/reference/intro/getting-started
 
@@ -17,6 +18,10 @@ let tmdbParameterAppendToResponse = "append_to_response"
 
 /// Parts of the details answer that TMDB sends in the same request.
 let tmdbDetailsAppendedParts = "credits,videos,release_dates,watch/providers,recommendations"
+
+/// Keys of the cached answers: the popular list, and the details as "movie/603".
+let popularMoviesCacheKey = "popular"
+let movieDetailsCacheKeyPrefix = "movie/"
 
 let httpStatusOK = 200
 let httpStatusUnauthorized = 401
@@ -136,6 +141,25 @@ func searchTMDBMovies(query: String, genreId: Int) async throws -> [Movie] {
 func fetchMovieDetails(movieId: Int) async throws -> MovieDetails {
     let apiKey = try requireTMDBAPIKey()
     let data = try await fetchTMDBData(tmdbMovieDetailsURL(movieId: movieId, apiKey: apiKey))
+    return try decodeTMDBMovieDetails(data)
+}
+
+/// Like `fetchPopularMovies`, but shows the last answer when the request fails.
+func loadPopularMovies(cache: ModelContext) async throws -> [Movie] {
+    let data = try await fetchWithCacheFallback(cache, key: popularMoviesCacheKey) {
+        let apiKey = try requireTMDBAPIKey()
+        return try await fetchTMDBData(tmdbPopularURL(apiKey: apiKey))
+    }
+    return try decodeTMDBMovies(data)
+}
+
+/// Like `fetchMovieDetails`, but shows the last answer when the request fails.
+func loadTMDBMovieDetails(movieId: Int, cache: ModelContext) async throws -> MovieDetails {
+    let cacheKey = movieDetailsCacheKeyPrefix + String(movieId)
+    let data = try await fetchWithCacheFallback(cache, key: cacheKey) {
+        let apiKey = try requireTMDBAPIKey()
+        return try await fetchTMDBData(tmdbMovieDetailsURL(movieId: movieId, apiKey: apiKey))
+    }
     return try decodeTMDBMovieDetails(data)
 }
 
