@@ -10,7 +10,7 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Xcode
         run: xcodebuild -version
@@ -70,7 +70,7 @@ jobs:
           cat build/warnings.txt
           if [ -s build/warnings.txt ]; then exit 1; fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: results
