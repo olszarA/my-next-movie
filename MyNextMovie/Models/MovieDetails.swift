@@ -90,7 +90,21 @@ nonisolated struct CountryReleaseDates: Decodable {
 
 nonisolated struct ReleaseDate: Decodable {
     let certification: String
+    let releaseDate: String  // "2026-10-17T00:00:00.000Z"
+    let type: Int  // 2 and 3 are cinema premieres
 }
+
+let releaseTypeTheatricalLimited = 2
+let releaseTypeTheatrical = 3
+/// A movie usually plays in cinemas for about six weeks.
+let typicalCinemaRunInDays = 42
+
+/// From `daysSinceReleaseDay` for an unreadable date or a date in the future.
+let notReleasedYet = -1
+
+/// "2026-10-17" is the first 10 characters of a TMDB release date.
+private let releaseDayLength = 10
+private let secondsPerDay: TimeInterval = 86_400
 
 nonisolated struct WatchProviderList: Decodable {
     let results: [String: CountryWatchProviders]  // the key is a country code, e.g. "PL"
@@ -239,4 +253,49 @@ private func imageURL(baseURL: String, path: String?) -> URL? {
         return nil
     }
     return URL(string: baseURL + imagePath)
+}
+
+/// Whether the movie had its cinema premiere in the country at most 42 days before `today`.
+/// TMDB does not know the showtimes, so this is a guess from the premiere.
+func isInCinemas(_ details: MovieDetails, regionCode: String, today: Date) -> Bool {
+    for country in details.releaseDates.results {
+        if country.countryCode != regionCode {
+            continue
+        }
+        for releaseDate in country.releaseDates {
+            if isCinemaRunning(releaseDate, today: today) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+/// Whole days from the release day to `today`, both counted in UTC.
+/// `notReleasedYet` for an unreadable date or a date in the future.
+func daysSinceReleaseDay(_ releaseDate: String, today: Date) -> Int {
+    let releaseDay = String(releaseDate.prefix(releaseDayLength))
+    let dayFormat = Date.ISO8601FormatStyle().year().month().day()
+    guard let releaseDayStart = try? dayFormat.parse(releaseDay) else {
+        return notReleasedYet
+    }
+    let days = dayNumber(today) - dayNumber(releaseDayStart)
+    if days < 0 {
+        return notReleasedYet
+    }
+    return days
+}
+
+private func isCinemaRunning(_ releaseDate: ReleaseDate, today: Date) -> Bool {
+    let type = releaseDate.type
+    if type != releaseTypeTheatrical && type != releaseTypeTheatricalLimited {
+        return false
+    }
+    let days = daysSinceReleaseDay(releaseDate.releaseDate, today: today)
+    return days >= 0 && days <= typicalCinemaRunInDays
+}
+
+/// Days since 1 January 1970 in UTC.
+private func dayNumber(_ date: Date) -> Int {
+    return Int((date.timeIntervalSince1970 / secondsPerDay).rounded(.down))
 }

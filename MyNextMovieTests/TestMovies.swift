@@ -91,8 +91,16 @@ let testMovieDetails = MovieDetails(
         Video(key: "vKQi3bBA1y8", site: "YouTube", type: "Trailer", official: true)
     ]),
     releaseDates: ReleaseDateList(results: [
-        CountryReleaseDates(countryCode: "PL", releaseDates: [ReleaseDate(certification: "16")])
+        CountryReleaseDates(countryCode: "PL", releaseDates: [matrixPolishPremiere])
     ]),
     watchProviders: WatchProviderList(results: [:]),
     recommendations: TMDBMoviePage(results: [])
+)
+
+/// The Matrix in Polish cinemas, rated 16.
+@MainActor
+private let matrixPolishPremiere = ReleaseDate(
+    certification: "16",
+    releaseDate: "1999-06-25T00:00:00.000Z",
+    type: releaseTypeTheatrical
 )
