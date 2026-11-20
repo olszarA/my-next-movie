@@ -2,7 +2,7 @@ name: iOS
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, 'check/**']
   workflow_dispatch:
 
 jobs:
@@ -59,6 +59,7 @@ jobs:
       - name: Screenshots
         if: always()
         continue-on-error: true
+        timeout-minutes: 8
         run: ci/screenshots.sh
 
       - name: Warnings
