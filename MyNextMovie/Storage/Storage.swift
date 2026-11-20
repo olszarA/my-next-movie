@@ -21,16 +21,59 @@ func isMovieSaved(_ context: ModelContext, movieId: Int) -> Bool {
     return !fetchSavedMovies(context, movieId: movieId).isEmpty
 }
 
-/// Saves the movie, or removes it when it is already saved.
+/// Saves the movie, or removes it when it is already saved. Removing a movie the account has
+/// leaves a `RemovedSavedMovie`, so the next sync removes it from the account too.
 func toggleSavedMovie(_ context: ModelContext, _ movie: Movie, now: Date) {
     let savedCopies = fetchSavedMovies(context, movieId: movie.id)
     if savedCopies.isEmpty {
-        context.insert(SavedMovie(movie: movie, savedAt: now))
+        // Saved again before the sync: the account still has it, so the mark goes away.
+        deleteRemovalMarks(context, movieId: movie.id)
+        context.insert(SavedMovie(movie: movie, savedAt: now, isInCloud: false))
         return
     }
     for savedCopy in savedCopies {
+        if savedCopy.isInCloud {
+            markMovieRemoved(context, movieId: savedCopy.movieId)
+        }
         context.delete(savedCopy)
     }
+}
+
+/// For signing out: removes every saved movie and every mark from this device.
+/// The account keeps its movies.
+func clearSavedMovies(_ context: ModelContext) {
+    let savedMovies = (try? context.fetch(FetchDescriptor<SavedMovie>())) ?? []
+    for savedMovie in savedMovies {
+        context.delete(savedMovie)
+    }
+    for removalMark in fetchRemovalMarks(context) {
+        context.delete(removalMark)
+    }
+}
+
+// MARK: - Removal marks
+
+func fetchRemovalMarks(_ context: ModelContext) -> [RemovedSavedMovie] {
+    return (try? context.fetch(FetchDescriptor<RemovedSavedMovie>())) ?? []
+}
+
+func markMovieRemoved(_ context: ModelContext, movieId: Int) {
+    if fetchRemovalMarks(context, movieId: movieId).isEmpty {
+        context.insert(RemovedSavedMovie(movieId: movieId))
+    }
+}
+
+func deleteRemovalMarks(_ context: ModelContext, movieId: Int) {
+    for removalMark in fetchRemovalMarks(context, movieId: movieId) {
+        context.delete(removalMark)
+    }
+}
+
+func fetchRemovalMarks(_ context: ModelContext, movieId: Int) -> [RemovedSavedMovie] {
+    let descriptor = FetchDescriptor<RemovedSavedMovie>(
+        predicate: #Predicate { removalMark in removalMark.movieId == movieId }
+    )
+    return (try? context.fetch(descriptor)) ?? []
 }
 
 func movieFromSaved(_ savedMovie: SavedMovie) -> Movie {
