@@ -18,10 +18,21 @@ struct FilterMoviesTests {
         #expect(titlesOf(foundMovies) == ["Interstellar"])
     }
 
-    // TODO: Lab 2, task 1. Check that diacritics do not matter: build a `Movie` titled "Amélie"
-    // (other fields empty, `posterPath: nil`) and expect `filterMovies` to find it for "amelie".
-    @Test(.disabled("Lab 2, task 1: write this test"))
-    func ignoresDiacritics() {
+    /// "amelie" finds a movie titled "Amélie".
+    @Test func ignoresDiacritics() {
+        let amelie = Movie(
+            id: 194,
+            title: "Amélie",
+            overview: "",
+            releaseDate: "",
+            posterPath: nil,
+            voteAverage: 0,
+            genreIds: []
+        )
+
+        let foundMovies = filterMovies([amelie], query: "amelie", genreId: noGenreId)
+
+        #expect(titlesOf(foundMovies) == ["Amélie"])
     }
 
     @Test func filtersByGenre() {
@@ -29,10 +40,10 @@ struct FilterMoviesTests {
         #expect(titlesOf(foundMovies) == ["Spirited Away"])
     }
 
-    // TODO: Lab 2, task 1. Check that the query and the genre must both match:
-    // "matrix" with `genreIdAnimation` finds nothing in `sampleMovies`.
-    @Test(.disabled("Lab 2, task 1: write this test"))
-    func combinesQueryAndGenre() {
+    /// The query and the genre must both match: "matrix" is not an animation.
+    @Test func combinesQueryAndGenre() {
+        let foundMovies = filterMovies(sampleMovies, query: "matrix", genreId: genreIdAnimation)
+        #expect(foundMovies.isEmpty)
     }
 
     @Test func trimsSpacesAroundQuery() {
@@ -52,12 +63,24 @@ struct SearchViewModelTests {
         #expect(viewModel.state == .idle)
     }
 
-    // TODO: Lab 2, task 1. Check what `search` passes to `searchMovies`.
-    // Save the received query and genre id in variables inside the closure and return [].
-    // Set `query` to " matrix " and `selectedGenreId` to `genreIdAction`, call `search()`,
-    // then expect "matrix", `genreIdAction`, state `.loaded` and no movies.
-    @Test(.disabled("Lab 2, task 1: write this test"))
-    func passesTrimmedQueryAndGenreToSearch() {
+    /// `search` passes the trimmed query and the selected genre to `searchMovies`.
+    @Test func passesTrimmedQueryAndGenreToSearch() async {
+        var receivedQuery = ""
+        var receivedGenreId = noGenreId
+        let viewModel = SearchViewModel(searchMovies: { query, genreId in
+            receivedQuery = query
+            receivedGenreId = genreId
+            return []
+        })
+        viewModel.query = " matrix "
+        viewModel.selectedGenreId = genreIdAction
+
+        await viewModel.search()
+
+        #expect(receivedQuery == "matrix")
+        #expect(receivedGenreId == genreIdAction)
+        #expect(viewModel.state == .loaded)
+        #expect(viewModel.movies.isEmpty)
     }
 
     @Test func showsErrorWhenSearchFails() async {
@@ -70,10 +93,15 @@ struct SearchViewModelTests {
         #expect(viewModel.errorMessage == "No connection")
     }
 
-    // TODO: Lab 2, task 1. Check that `toggleGenre` called twice with `genreIdAction`
-    // first selects the genre, then clears it back to `noGenreId`.
-    @Test(.disabled("Lab 2, task 1: write this test"))
-    func togglingSelectedGenreClearsIt() {
+    /// The first `toggleGenre` selects the genre, the second clears it.
+    @Test func togglingSelectedGenreClearsIt() {
+        let viewModel = SearchViewModel(searchMovies: { _, _ in [] })
+
+        viewModel.toggleGenre(genreIdAction)
+        #expect(viewModel.selectedGenreId == genreIdAction)
+
+        viewModel.toggleGenre(genreIdAction)
+        #expect(viewModel.selectedGenreId == noGenreId)
     }
 }
 
