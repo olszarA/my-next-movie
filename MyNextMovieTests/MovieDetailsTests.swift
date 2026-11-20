@@ -244,3 +244,85 @@ func makeMovieDetails(runtime: Int? = nil, videos: [Video] = []) -> MovieDetails
         recommendations: TMDBMoviePage(results: [])
     )
 }
+
+/// 6 November 2026, midnight UTC.
+private let cinemaTestToday = Date(timeIntervalSince1970: 1_793_923_200)
+
+/// Details with release dates in one country, the rest empty.
+@MainActor
+private func makeDetailsWithReleases(_ countryCode: String, _ releaseDates: [ReleaseDate])
+    -> MovieDetails
+{
+    let country = CountryReleaseDates(countryCode: countryCode, releaseDates: releaseDates)
+    return MovieDetails(
+        id: 1,
+        tagline: "",
+        runtime: nil,
+        credits: Credits(cast: [], crew: []),
+        videos: VideoList(results: []),
+        releaseDates: ReleaseDateList(results: [country]),
+        watchProviders: WatchProviderList(results: [:]),
+        recommendations: TMDBMoviePage(results: [])
+    )
+}
+
+@MainActor
+private func release(_ releaseDate: String, type: Int) -> ReleaseDate {
+    return ReleaseDate(certification: "", releaseDate: releaseDate, type: type)
+}
+
+@MainActor
+struct InCinemasTests {
+    @Test func recentCinemaPremiereIsInCinemas() {
+        let details = makeDetailsWithReleases(
+            "PL", [release("2026-10-17T00:00:00.000Z", type: releaseTypeTheatrical)])
+
+        #expect(isInCinemas(details, regionCode: "PL", today: cinemaTestToday))
+        #expect(daysSinceReleaseDay("2026-10-17T00:00:00.000Z", today: cinemaTestToday) == 20)
+    }
+
+    @Test func limitedReleaseCountsToo() {
+        let details = makeDetailsWithReleases(
+            "PL", [release("2026-11-06T00:00:00.000Z", type: releaseTypeTheatricalLimited)])
+
+        #expect(isInCinemas(details, regionCode: "PL", today: cinemaTestToday))
+    }
+
+    @Test func oldPremiereIsNotInCinemas() {
+        let lastDay = makeDetailsWithReleases(
+            "PL", [release("2026-09-25T00:00:00.000Z", type: releaseTypeTheatrical)])
+        let dayAfter = makeDetailsWithReleases(
+            "PL", [release("2026-09-24T00:00:00.000Z", type: releaseTypeTheatrical)])
+
+        #expect(isInCinemas(lastDay, regionCode: "PL", today: cinemaTestToday))
+        #expect(!isInCinemas(dayAfter, regionCode: "PL", today: cinemaTestToday))
+    }
+
+    @Test func futurePremiereIsNotInCinemasYet() {
+        let details = makeDetailsWithReleases(
+            "PL", [release("2026-11-07T00:00:00.000Z", type: releaseTypeTheatrical)])
+
+        #expect(!isInCinemas(details, regionCode: "PL", today: cinemaTestToday))
+        #expect(daysSinceReleaseDay("2026-11-07T00:00:00.000Z", today: cinemaTestToday) == -1)
+    }
+
+    @Test func digitalReleaseIsNotCinema() {
+        let details = makeDetailsWithReleases("PL", [release("2026-10-17T00:00:00.000Z", type: 4)])
+
+        #expect(!isInCinemas(details, regionCode: "PL", today: cinemaTestToday))
+    }
+
+    @Test func premiereInAnotherCountryDoesNotCount() {
+        let details = makeDetailsWithReleases(
+            "US", [release("2026-10-17T00:00:00.000Z", type: releaseTypeTheatrical)])
+
+        #expect(!isInCinemas(details, regionCode: "PL", today: cinemaTestToday))
+    }
+
+    @Test func unreadableDateIsNotInCinemas() {
+        let details = makeDetailsWithReleases("PL", [release("soon", type: releaseTypeTheatrical)])
+
+        #expect(!isInCinemas(details, regionCode: "PL", today: cinemaTestToday))
+        #expect(daysSinceReleaseDay("", today: cinemaTestToday) == -1)
+    }
+}
