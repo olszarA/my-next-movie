@@ -1,0 +1,82 @@
+name: iOS
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode
+        run: xcodebuild -version
+
+      - name: Secrets.xcconfig
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          url_for_xcconfig=$(printf '%s' "$SUPABASE_URL" | sed 's#://#:/$()/#')
+          {
+            echo "TMDB_API_KEY = $TMDB_API_KEY"
+            echo "SUPABASE_URL = $url_for_xcconfig"
+            echo "SUPABASE_ANON_KEY = $SUPABASE_ANON_KEY"
+          } > Config/Secrets.xcconfig
+
+      - name: Pick simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 ci/pick_simulator.py)
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+          echo "Simulator: $udid"
+
+      - name: Build and test
+        run: |
+          mkdir -p build
+          set -o pipefail
+          xcodebuild test \
+            -project MyNextMovie.xcodeproj \
+            -scheme MyNextMovie \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/Tests.xcresult \
+            2>&1 | tee build/xcodebuild.log \
+            | grep -E '(error|warning):|✘|Test run|\*\* (BUILD|TEST)' || true
+          exit "${PIPESTATUS[0]}"
+
+      - name: Test summary
+        if: always()
+        run: |
+          xcrun xcresulttool get test-results summary --path build/Tests.xcresult > build/test-summary.json || true
+          xcrun xcresulttool get test-results tests --path build/Tests.xcresult > build/test-details.json || true
+          grep -E '✘|✔' build/xcodebuild.log | sort -u > build/tests.txt || true
+          python3 ci/summarize_tests.py build/test-summary.json || true
+
+      - name: Screenshots
+        if: always()
+        continue-on-error: true
+        run: ci/screenshots.sh
+
+      - name: Warnings
+        if: always()
+        run: |
+          grep -E '(warning|error): ' build/xcodebuild.log \
+            | grep -vE 'appintentsmetadataprocessor|Metadata extraction skipped' \
+            | sort -u > build/warnings.txt || true
+          cat build/warnings.txt
+          if [ -s build/warnings.txt ]; then exit 1; fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results
+          path: |
+            build/*.log
+            build/*.txt
+            build/*.json
+            build/screens/
+          if-no-files-found: warn
