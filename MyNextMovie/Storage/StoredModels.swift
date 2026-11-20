@@ -13,10 +13,10 @@ final class SavedMovie {
     var voteAverage: Double
     var genreIds: [Int]
     var savedAt: Date
-    /// Whether the account in Supabase already has the movie. Used from lab 5.
+    /// Whether the account in Supabase already has the movie.
     var isInCloud: Bool = false
 
-    init(movie: Movie, savedAt: Date) {
+    init(movie: Movie, savedAt: Date, isInCloud: Bool) {
         self.movieId = movie.id
         self.title = movie.title
         self.overview = movie.overview
@@ -25,7 +25,18 @@ final class SavedMovie {
         self.voteAverage = movie.voteAverage
         self.genreIds = movie.genreIds
         self.savedAt = savedAt
-        self.isInCloud = false
+        self.isInCloud = isInCloud
+    }
+}
+
+/// A movie removed on this device but not yet from the account.
+/// A movie is either a `SavedMovie` or a `RemovedSavedMovie`, never both.
+@Model
+final class RemovedSavedMovie {
+    @Attribute(.unique) var movieId: Int
+
+    init(movieId: Int) {
+        self.movieId = movieId
     }
 }
 
@@ -58,6 +69,7 @@ final class CachedResponse {
 /// Every SwiftData model of the app, for `.modelContainer(for:)`.
 let storedModelTypes: [any PersistentModel.Type] = [
     SavedMovie.self,
+    RemovedSavedMovie.self,
     SearchHistoryEntry.self,
     CachedResponse.self,
 ]

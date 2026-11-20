@@ -43,6 +43,45 @@ struct SavedMovieTests {
         let savedMovies = try context.fetch(FetchDescriptor<SavedMovie>())
         #expect(moviesFromSaved(savedMovies) == [matrix])
     }
+
+    @Test func removingMovieTheAccountHasLeavesAMark() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let matrix = testMovies[0]
+        context.insert(SavedMovie(movie: matrix, savedAt: minutesAfterStart(1), isInCloud: true))
+
+        toggleSavedMovie(context, matrix, now: minutesAfterStart(2))
+
+        #expect(!isMovieSaved(context, movieId: matrix.id))
+        #expect(removedMovieIds(context) == [matrix.id])
+    }
+
+    @Test func removingMovieOnlyOnDeviceLeavesNoMark() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let matrix = testMovies[0]
+
+        toggleSavedMovie(context, matrix, now: minutesAfterStart(1))
+        toggleSavedMovie(context, matrix, now: minutesAfterStart(2))
+
+        #expect(!isMovieSaved(context, movieId: matrix.id))
+        #expect(removedMovieIds(context).isEmpty)
+    }
+
+    @Test func clearRemovesMoviesAndMarks() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let inCloud = SavedMovie(
+            movie: testMovies[0], savedAt: minutesAfterStart(1), isInCloud: true)
+        context.insert(inCloud)
+        toggleSavedMovie(context, testMovies[0], now: minutesAfterStart(2))
+        toggleSavedMovie(context, testMovies[1], now: minutesAfterStart(3))
+
+        clearSavedMovies(context)
+
+        #expect(try context.fetchCount(FetchDescriptor<SavedMovie>()) == 0)
+        #expect(removedMovieIds(context).isEmpty)
+    }
 }
 
 @MainActor
@@ -171,4 +210,13 @@ private func queriesOf(_ entries: [SearchHistoryEntry]) -> [String] {
         queries.append(entry.query)
     }
     return queries
+}
+
+@MainActor
+private func removedMovieIds(_ context: ModelContext) -> [Int] {
+    var movieIds: [Int] = []
+    for removalMark in fetchRemovalMarks(context) {
+        movieIds.append(removalMark.movieId)
+    }
+    return movieIds
 }
