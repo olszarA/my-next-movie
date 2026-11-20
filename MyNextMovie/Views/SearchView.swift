@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// How long to wait after the last keystroke before searching.
@@ -10,6 +11,8 @@ private let searchInputKeySeparator = "|"
 struct SearchView: View {
     @State private var viewModel: SearchViewModel
     private let loadDetails: MovieDetailsLoader
+
+    @Environment(\.modelContext) private var modelContext
 
     init(viewModel: SearchViewModel, loadDetails: @escaping MovieDetailsLoader) {
         _viewModel = State(initialValue: viewModel)
@@ -24,6 +27,7 @@ struct SearchView: View {
             }
             .navigationTitle("Search")
             .searchable(text: $viewModel.query, prompt: "Title or keyword")
+            .onSubmit(of: .search, recordTypedSearch)
             .navigationDestination(for: Movie.self) { movie in
                 MovieDetailView(movie: movie, loadDetails: loadDetails)
             }
@@ -41,11 +45,7 @@ struct SearchView: View {
     private var content: some View {
         switch viewModel.state {
         case .idle:
-            ContentUnavailableView(
-                "Find a movie",
-                systemImage: symbolNameSearch,
-                description: Text("Search by title or keyword, or pick a genre.")
-            )
+            SearchStartView(selectQuery: selectQuery)
         case .loading:
             ProgressView()
         case .loaded:
@@ -55,6 +55,17 @@ struct SearchView: View {
                 Task { await viewModel.search() }
             }
         }
+    }
+
+    /// Called by the Search key. Recording every letter would fill the history with "m", "ma".
+    private func recordTypedSearch() {
+        recordSearch(modelContext, query: viewModel.query, now: Date.now)
+    }
+
+    /// Puts a query from the history into the search field and records it again.
+    private func selectQuery(_ query: String) {
+        viewModel.query = query
+        recordSearch(modelContext, query: query, now: Date.now)
     }
 
     /// Waits until the user stops typing. Every keystroke cancels the previous wait.
@@ -70,6 +81,61 @@ struct SearchView: View {
 /// Changes whenever the search input changes, which restarts the search task.
 private func searchInputKey(_ query: String, _ selectedGenreId: Int) -> String {
     return String(selectedGenreId) + searchInputKeySeparator + query
+}
+
+/// Before searching: recent searches, or a hint when there are none.
+private struct SearchStartView: View {
+    let selectQuery: (String) -> Void
+
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \SearchHistoryEntry.searchedAt, order: .reverse)
+    private var searchHistory: [SearchHistoryEntry]
+
+    @ViewBuilder
+    var body: some View {
+        if searchHistory.isEmpty {
+            ContentUnavailableView(
+                "Find a movie",
+                systemImage: symbolNameSearch,
+                description: Text("Search by title or keyword, or pick a genre.")
+            )
+        } else {
+            recentSearchList
+        }
+    }
+
+    private var recentSearchList: some View {
+        List {
+            Section {
+                recentSearchRows
+            } header: {
+                recentSearchesHeader
+            }
+        }
+        .listStyle(.plain)
+    }
+
+    private var recentSearchesHeader: some View {
+        HStack {
+            Text("Recent Searches")
+            Spacer()
+            Button("Clear") { clearSearchHistory(modelContext) }
+        }
+    }
+
+    private var recentSearchRows: some View {
+        ForEach(searchHistory) { entry in
+            recentSearchRow(entry.query)
+        }
+    }
+
+    private func recentSearchRow(_ query: String) -> some View {
+        Button {
+            selectQuery(query)
+        } label: {
+            Label(query, systemImage: symbolNameRecentSearch)
+        }
+    }
 }
 
 /// Every genre from `genreTable` as a chip in one row that scrolls sideways.
@@ -162,4 +228,5 @@ private struct SearchResultRow: View {
         viewModel: SearchViewModel(searchMovies: searchTMDBMovies),
         loadDetails: fetchMovieDetails
     )
+    .modelContainer(for: storedModelTypes, inMemory: true)
 }
