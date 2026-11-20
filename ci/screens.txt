@@ -1,9 +1,6 @@
 # Steps for ci/screenshots.sh: shot NAME, tap LABEL, tapid ID, tapxy X Y, type TEXT,
 # key HIDCODE, swipe PRESET, wait SECONDS, relaunch
-shot movies
-tap Search
-wait 2
-shot search-start
-type matrix
-wait 3
-shot search-matrix
+shot start
+tap Sign In
+wait 5
+shot after-sign-in

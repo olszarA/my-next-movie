@@ -27,16 +27,19 @@ mkdir -p /tmp/axe && tar -xzf /tmp/axe.tar.gz -C /tmp/axe
 axe=$(find /tmp/axe -type f -name axe -perm -u+x | head -1)
 echo "axe: $axe"
 
-echo "== boot"
-limited 120 xcrun simctl boot "$SIM_UDID" 2>/dev/null
-limited 180 xcrun simctl bootstatus "$SIM_UDID" -b
-echo "== location"
-limited 20 xcrun simctl location "$SIM_UDID" set 51.0983,17.0368 || true
-limited 20 xcrun simctl privacy "$SIM_UDID" grant location "$bundle" || true
-echo "== install"
-limited 60 xcrun simctl install "$SIM_UDID" "$app"
-limited 30 xcrun simctl launch "$SIM_UDID" "$bundle"
-sleep 8
+# The simulator was booted before the build and the tests ran on it.
+echo "== boot $(date +%T)"
+limited 60 xcrun simctl boot "$SIM_UDID" 2>/dev/null
+limited 240 xcrun simctl bootstatus "$SIM_UDID" -b | tail -2
+echo "== install $(date +%T)"
+limited 240 xcrun simctl install "$SIM_UDID" "$app"
+echo "== location $(date +%T)"
+limited 30 xcrun simctl privacy "$SIM_UDID" grant location "$bundle" || true
+limited 30 xcrun simctl location "$SIM_UDID" set 51.0983,17.0368 || true
+echo "== launch $(date +%T)"
+limited 90 xcrun simctl launch "$SIM_UDID" "$bundle"
+sleep 10
+echo "== steps $(date +%T)"
 
 n=0
 while IFS= read -r line || [ -n "$line" ]; do
@@ -44,7 +47,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in \#*) continue ;; esac
   cmd=${line%% *}
   arg=${line#* }
-  echo "> $line"
+  echo "> $line ($(date +%T))"
   case "$cmd" in
     shot)
       n=$((n + 1))
